@@ -4,22 +4,25 @@ import { useState, FormEvent } from 'react'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { ImageUpload } from '@/components/ui/ImageUpload'
-import type { TobaccoItem, Category } from '@/types/tobacco.types'
+import type { TobaccoItem, Category, Brand } from '@/types/tobacco.types'
 
 interface TobaccoFormProps {
   tobacco?: TobaccoItem | null
   categories: Category[]
-  onSave: (data: { name: string; available_grams: number; image_url?: string; category_id?: string }) => Promise<void>
+  brands: Brand[]
+  onSave: (data: { name: string; available_grams: number; image_url?: string; category_id?: string; brand_id?: string }) => Promise<void>
   onCancel: () => void
   onAddCategory: () => void
+  onAddBrand: () => void
 }
 
-export function TobaccoForm({ tobacco, categories, onSave, onCancel, onAddCategory }: TobaccoFormProps) {
+export function TobaccoForm({ tobacco, categories, brands, onSave, onCancel, onAddCategory, onAddBrand }: TobaccoFormProps) {
   const [name, setName] = useState(tobacco?.name || '')
   const [grams, setGrams] = useState(tobacco?.available_grams || 0)
   const [customGrams, setCustomGrams] = useState('')
   const [imageUrl, setImageUrl] = useState(tobacco?.image_url || '')
   const [categoryId, setCategoryId] = useState(tobacco?.category_id || '')
+  const [brandId, setBrandId] = useState(tobacco?.brand_id || '')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -59,6 +62,7 @@ export function TobaccoForm({ tobacco, categories, onSave, onCancel, onAddCatego
         available_grams: grams,
         image_url: imageUrl && imageUrl.trim() ? imageUrl.trim() : undefined,
         category_id: categoryId || undefined,
+        brand_id: brandId || undefined,
       })
     } catch (err: any) {
       setError(err.message || 'Ошибка при сохранении')
@@ -82,6 +86,29 @@ export function TobaccoForm({ tobacco, categories, onSave, onCancel, onAddCatego
         placeholder="Введите название"
         required
       />
+
+      <div>
+        <label className="block text-sm font-medium text-telegram-text mb-2">
+          Бренд
+        </label>
+        <div className="flex gap-2">
+          <select
+            value={brandId}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setBrandId(e.target.value)}
+            className="flex-1 px-4 py-2 bg-telegram-bg text-telegram-text border border-telegram-secondary-bg rounded-lg focus:outline-none focus:ring-2 focus:ring-telegram-button appearance-none text-base"
+          >
+            <option value="">Без бренда</option>
+            {brands.map((brand) => (
+              <option key={brand.id} value={brand.id}>
+                {brand.name}
+              </option>
+            ))}
+          </select>
+          <Button type="button" variant="secondary" onClick={onAddBrand} className="px-3">
+            +
+          </Button>
+        </div>
+      </div>
 
       <div>
         <label className="block text-sm font-medium text-telegram-text mb-2">

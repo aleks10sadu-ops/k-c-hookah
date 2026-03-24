@@ -5,22 +5,26 @@ import { createClient } from '@/lib/supabase/client'
 import { TobaccoCard } from './TobaccoCard'
 import { TobaccoForm } from './TobaccoForm'
 import { CategoryManager } from '@/components/category/CategoryManager'
+import { BrandManager } from '@/components/brand/BrandManager'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Toast } from '@/components/ui/Toast'
 import { RestockModal } from './RestockModal'
-import type { TobaccoItem, Category } from '@/types/tobacco.types'
+import type { TobaccoItem, Category, Brand } from '@/types/tobacco.types'
 
 export function TobaccoList() {
   const [tobaccoItems, setTobaccoItems] = useState<TobaccoItem[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [brands, setBrands] = useState<Brand[]>([])
   const [filteredItems, setFilteredItems] = useState<TobaccoItem[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all')
+  const [selectedBrandId, setSelectedBrandId] = useState<string>('all')
   const [isLoading, setIsLoading] = useState(true)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false)
+  const [isBrandManagerOpen, setIsBrandManagerOpen] = useState(false)
   const [isRestockModalOpen, setIsRestockModalOpen] = useState(false)
   const [editingTobacco, setEditingTobacco] = useState<TobaccoItem | null>(null)
   const [restockingTobacco, setRestockingTobacco] = useState<TobaccoItem | null>(null)
@@ -29,7 +33,7 @@ export function TobaccoList() {
   const supabase = createClient()
 
   useEffect(() => {
-    Promise.all([loadTobaccoItems(), loadCategories()]).finally(() => {
+    Promise.all([loadTobaccoItems(), loadCategories(), loadBrands()]).finally(() => {
       setIsLoading(false)
     })
     setupRealtimeSubscription()
@@ -59,9 +63,26 @@ export function TobaccoList() {
     }
   }
 
+  const loadBrands = async () => {
+    try {
+      const response = await fetch('/api/brands')
+      const { data, error } = await response.json()
+      if (error) throw new Error(error)
+      setBrands(data || [])
+    } catch (error: any) {
+      console.error('Failed to load brands:', error)
+      setToast({ message: 'Ошибка загрузки брендов', type: 'error' })
+    }
+  }
+
   // Filter items based on search query and category
   useEffect(() => {
     let result = tobaccoItems
+
+    // Filter by brand
+    if (selectedBrandId !== 'all') {
+      result = result.filter((item: TobaccoItem) => item.brand_id === selectedBrandId)
+    }
 
     // Filter by category
     if (selectedCategoryId !== 'all') {
@@ -77,7 +98,7 @@ export function TobaccoList() {
     }
 
     setFilteredItems(result)
-  }, [searchQuery, selectedCategoryId, tobaccoItems])
+  }, [searchQuery, selectedCategoryId, selectedBrandId, tobaccoItems])
 
   const setupRealtimeSubscription = () => {
     const channel = supabase
@@ -110,7 +131,7 @@ export function TobaccoList() {
     setIsFormOpen(true)
   }
 
-  const handleSave = async (data: { name: string; available_grams: number; image_url?: string; category_id?: string }) => {
+  const handleSave = async (data: { name: string; available_grams: number; image_url?: string; category_id?: string; brand_id?: string }) => {
     try {
       if (editingTobacco) {
         // Update existing
@@ -205,6 +226,37 @@ export function TobaccoList() {
           onChange={(e) => setSearchQuery(e.target.value)}
         />
 
+        {/* Brands Tabs */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
+          <button
+            onClick={() => setSelectedBrandId('all')}
+            className={`whitespace-nowrap px-4 py-2 rounded-lg transition-colors text-sm font-medium ${selectedBrandId === 'all'
+              ? 'bg-telegram-button text-telegram-button-text'
+              : 'bg-telegram-secondary-bg text-telegram-text'
+              }`}
+          >
+            Все бренды
+          </button>
+          {brands.map((brand) => (
+            <button
+              key={brand.id}
+              onClick={() => setSelectedBrandId(brand.id)}
+              className={`whitespace-nowrap px-4 py-2 rounded-lg transition-colors text-sm font-medium ${selectedBrandId === brand.id
+                ? 'bg-telegram-button text-telegram-button-text'
+                : 'bg-telegram-secondary-bg text-telegram-text'
+                }`}
+            >
+              {brand.name}
+            </button>
+          ))}
+          <button
+            onClick={() => setIsBrandManagerOpen(true)}
+            className="whitespace-nowrap px-3 py-2 rounded-lg bg-telegram-secondary-bg text-telegram-link text-sm font-medium border border-telegram-link border-dashed"
+          >
+            + Бренды
+          </button>
+        </div>
+
         {/* Categories Tabs */}
         <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
           <button
@@ -214,7 +266,7 @@ export function TobaccoList() {
               : 'bg-telegram-secondary-bg text-telegram-text'
               }`}
           >
-            Все
+            Все категории
           </button>
           {categories.map((category) => (
             <button
@@ -276,6 +328,7 @@ export function TobaccoList() {
         <TobaccoForm
           tobacco={editingTobacco}
           categories={categories}
+          brands={brands}
           onSave={handleSave}
           onCancel={() => {
             setIsFormOpen(false)
@@ -285,6 +338,9 @@ export function TobaccoList() {
             setIsCategoryManagerOpen(true)
             // Keep form open
           }}
+          onAddBrand={() => {
+            setIsBrandManagerOpen(true)
+          }}
         />
       </Modal>
 
@@ -292,6 +348,12 @@ export function TobaccoList() {
         isOpen={isCategoryManagerOpen}
         onClose={() => setIsCategoryManagerOpen(false)}
         onCategoryChange={loadCategories}
+      />
+
+      <BrandManager
+        isOpen={isBrandManagerOpen}
+        onClose={() => setIsBrandManagerOpen(false)}
+        onBrandChange={loadBrands}
       />
 
       <RestockModal

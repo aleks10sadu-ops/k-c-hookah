@@ -30,7 +30,19 @@ export function TobaccoCard({ tobacco, onEdit, onDelete, onRestock }: TobaccoCar
         )}
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-telegram-text truncate text-lg">{tobacco.name}</h3>
-          <p className="text-sm text-telegram-hint mt-1">
+          <div className="flex flex-wrap gap-2 mt-1">
+            {tobacco.brands?.name && (
+              <span className="text-telegram-text text-sm font-semibold">
+                {tobacco.brands.name}
+              </span>
+            )}
+            {tobacco.categories?.name && (
+              <span className="px-2 py-0.5 bg-telegram-secondary-bg text-telegram-hint text-xs font-medium rounded-md border border-telegram-secondary-bg">
+                {tobacco.categories.name}
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-telegram-hint mt-2">
             Доступно: <span className="font-medium text-telegram-text">{tobacco.available_grams} г</span>
           </p>
           <div className="flex flex-wrap gap-2 mt-3">

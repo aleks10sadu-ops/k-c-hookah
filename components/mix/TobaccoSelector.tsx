@@ -183,9 +183,16 @@ export function TobaccoSelector({ tobaccoItems, onSelect }: TobaccoSelectorProps
                   onMouseEnter={() => setSelectedIndex(index)}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">
-                      {highlightMatch(tobacco.name, searchQuery)}
-                    </span>
+                    <div className="flex flex-col">
+                      <span className="font-medium">
+                        {highlightMatch(tobacco.name, searchQuery)}
+                      </span>
+                      {tobacco.brands?.name && (
+                        <span className="text-xs text-telegram-hint opacity-80">
+                          {tobacco.brands.name}
+                        </span>
+                      )}
+                    </div>
                     <span
                       className={`text-sm ${
                         index === selectedIndex
@@ -215,7 +222,12 @@ export function TobaccoSelector({ tobaccoItems, onSelect }: TobaccoSelectorProps
                 className="w-full text-left p-3 bg-telegram-secondary-bg rounded-lg hover:bg-opacity-80 transition-colors"
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-medium text-telegram-text">{tobacco.name}</span>
+                  <div className="flex flex-col">
+                    <span className="font-medium text-telegram-text">{tobacco.name}</span>
+                    {tobacco.brands?.name && (
+                      <span className="text-xs text-telegram-hint">{tobacco.brands.name}</span>
+                    )}
+                  </div>
                   <span className="text-sm text-telegram-hint">
                     {tobacco.available_grams} г
                   </span>

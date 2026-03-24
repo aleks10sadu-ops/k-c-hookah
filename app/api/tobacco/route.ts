@@ -8,6 +8,7 @@ const tobaccoSchema = z.object({
   image_url: z.string().url().optional().nullable().or(z.literal('')),
   available_grams: z.number().int().min(0, 'Количество должно быть положительным'),
   category_id: z.string().uuid().optional().nullable(),
+  brand_id: z.string().uuid().optional().nullable(),
 })
 
 /**
@@ -20,7 +21,7 @@ export async function GET() {
     const supabase = await createClient()
     const { data, error } = await supabase
       .from('tobacco_items')
-      .select('*, categories(id, name)')
+      .select('*, categories(id, name), brands(id, name)')
       .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -47,8 +48,9 @@ export async function POST(request: NextRequest) {
         image_url: validated.image_url || null,
         available_grams: validated.available_grams,
         category_id: validated.category_id || null,
+        brand_id: validated.brand_id || null,
       } as any)
-      .select('*, categories(id, name)')
+      .select('*, categories(id, name), brands(id, name)')
       .single()
 
     // Log the creation
