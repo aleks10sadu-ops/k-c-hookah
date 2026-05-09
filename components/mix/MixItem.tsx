@@ -6,20 +6,13 @@ import type { MixFormItem } from '@/types/mix.types'
 interface MixItemProps {
   item: MixFormItem
   totalGrams: number
-  mode: 'grams' | 'percentage'
+  mode: 'percentage'
   showQuickPercentages: boolean
   onUpdate: (updates: Partial<MixFormItem>) => void
   onRemove: () => void
 }
 
 export function MixItem({ item, totalGrams, mode, showQuickPercentages, onUpdate, onRemove }: MixItemProps) {
-  const handleGramsChange = (value: string) => {
-    const grams = parseFloat(value) || 0
-    const percentage = totalGrams > 0 ? (grams / totalGrams) * 100 : 0
-    // We don't round percentage here because grams drive the value, but display will truncate
-    onUpdate({ grams, percentage })
-  }
-
   const handlePercentageChange = (value: string) => {
     // Integer only for percentage input
     const percentage = Math.max(0, Math.min(100, parseInt(value) || 0))
@@ -50,54 +43,37 @@ export function MixItem({ item, totalGrams, mode, showQuickPercentages, onUpdate
       </div>
 
       <div className="space-y-3">
-        {mode === 'grams' ? (
-          <div>
-            <Input
-              label="Граммы"
-              type="number"
-              value={item.grams || ''}
-              onChange={(e) => handleGramsChange(e.target.value)}
-              min="0"
-              max={item.availableGrams}
-              step="0.1"
-            />
-            <p className="text-xs text-telegram-hint mt-1">
-              Процент: {Math.round(item.percentage)}%
-            </p>
-          </div>
-        ) : (
-          <div>
-            <div className="flex items-end gap-2">
-              <div className="flex-1">
-                <Input
-                  label="Проценты"
-                  type="number"
-                  value={Math.round(item.percentage).toString()}
-                  onChange={(e) => handlePercentageChange(e.target.value)}
-                  min="0"
-                  max="100"
-                  step="1"
-                />
-              </div>
-              {showQuickPercentages && (
-                <div className="flex gap-1 pb-1">
-                  {[25, 50, 75].map((pct) => (
-                    <button
-                      key={pct}
-                      onClick={() => handlePercentageChange(pct.toString())}
-                      className="px-2 py-2 text-xs bg-telegram-bg hover:bg-telegram-button hover:text-telegram-button-text text-telegram-text rounded border border-telegram-secondary-bg transition-colors"
-                    >
-                      {pct}%
-                    </button>
-                  ))}
-                </div>
-              )}
+        <div>
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <Input
+                label="Проценты"
+                type="number"
+                value={Math.round(item.percentage).toString()}
+                onChange={(e) => handlePercentageChange(e.target.value)}
+                min="0"
+                max="100"
+                step="1"
+              />
             </div>
-            <p className="text-xs text-telegram-hint mt-1">
-              Граммы: {item.grams.toFixed(1)} г
-            </p>
+            {showQuickPercentages && (
+              <div className="flex gap-1 pb-1">
+                {[25, 50, 75].map((pct) => (
+                  <button
+                    key={pct}
+                    onClick={() => handlePercentageChange(pct.toString())}
+                    className="px-2 py-2 text-xs bg-telegram-bg hover:bg-telegram-button hover:text-telegram-button-text text-telegram-text rounded border border-telegram-secondary-bg transition-colors"
+                  >
+                    {pct}%
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+          <p className="text-xs text-telegram-hint mt-1">
+            Граммы: {item.grams.toFixed(1)} г
+          </p>
+        </div>
 
         <div className="text-sm">
           <p className={remaining < 0 ? 'text-red-500' : 'text-telegram-hint'}>

@@ -1,29 +1,113 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import Image from 'next/image'
 import { Input } from '@/components/ui/Input'
 import type { TobaccoItem } from '@/types/tobacco.types'
 
+// Hook for mouse-drag scrolling
+function useDraggableScroll() {
+  const ref = useRef<HTMLDivElement>(null)
+  const [isDown, setIsDown] = useState(false)
+  const [startX, setStartX] = useState(0)
+  const [scrollLeft, setScrollLeft] = useState(0)
+  const [isDragging, setIsDragging] = useState(false)
+
+  const onMouseDown = (e: React.MouseEvent) => {
+    if (!ref.current) return
+    setIsDown(true)
+    setIsDragging(false)
+    setStartX(e.pageX - ref.current.offsetLeft)
+    setScrollLeft(ref.current.scrollLeft)
+  }
+
+  const onMouseLeave = () => {
+    setIsDown(false)
+  }
+
+  const onMouseUp = () => {
+    setIsDown(false)
+    // Small timeout to allow the 'onClickCapture' or 'onClick' to see the isDragging state
+    // before it gets reset. However, we'll use a better approach with capture.
+  }
+
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (!isDown || !ref.current) return
+    
+    const x = e.pageX - ref.current.offsetLeft
+    const distance = Math.abs(x - startX)
+    
+    // If moved more than 5 pixels, consider it a drag
+    if (distance > 5) {
+      setIsDragging(true)
+    }
+
+    if (isDragging) {
+      e.preventDefault()
+      const walk = (x - startX) * 2 // Scroll speed
+      ref.current.scrollLeft = scrollLeft - walk
+    }
+  }
+
+  // Prevent clicks if we were dragging
+  const handleItemClick = (e: React.MouseEvent) => {
+    if (isDragging) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+  }
+
+  return {
+    ref,
+    isDragging,
+    handleItemClick,
+    props: {
+      onMouseDown,
+      onMouseLeave,
+      onMouseUp,
+      onMouseMove,
+    }
+  }
+}
+
 interface TobaccoSelectorProps {
   tobaccoItems: TobaccoItem[]
+  categories: any[]
+  brands: any[]
   onSelect: (tobacco: TobaccoItem) => void
 }
 
-export function TobaccoSelector({ tobaccoItems, onSelect }: TobaccoSelectorProps) {
+export function TobaccoSelector({ tobaccoItems, categories, brands, onSelect }: TobaccoSelectorProps) {
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all')
+  const [selectedBrandId, setSelectedBrandId] = useState<string>('all')
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const inputRef = useRef<HTMLInputElement>(null)
-  const suggestionsRef = useRef<HTMLDivElement>(null)
+
+  const brandsDrag = useDraggableScroll()
+  const categoriesDrag = useDraggableScroll()
 
   // Filter and sort items by relevance
   const getFilteredItems = () => {
+    let filtered = tobaccoItems
+
+    // Filter by brand
+    if (selectedBrandId !== 'all') {
+      filtered = filtered.filter((item) => item.brand_id === selectedBrandId)
+    }
+
+    // Filter by category
+    if (selectedCategoryId !== 'all') {
+      filtered = filtered.filter((item) => item.category_id === selectedCategoryId)
+    }
+
     if (!searchQuery.trim()) {
-      return tobaccoItems.slice(0, 10) // Show first 10 when no query
+      return filtered
     }
 
     const query = searchQuery.toLowerCase()
-    const filtered = tobaccoItems
+    return filtered
       .filter((item) => item.name.toLowerCase().includes(query))
       .map((item) => {
         const nameLower = item.name.toLowerCase()
@@ -35,15 +119,11 @@ export function TobaccoSelector({ tobaccoItems, onSelect }: TobaccoSelectorProps
         }
       })
       .sort((a, b) => {
-        // Sort by: starts with query first, then by match position, then alphabetically
         if (a.startsWith && !b.startsWith) return -1
         if (!a.startsWith && b.startsWith) return 1
         if (a.matchIndex !== b.matchIndex) return a.matchIndex - b.matchIndex
         return a.name.localeCompare(b.name, 'ru')
       })
-      .slice(0, 8) // Limit to 8 suggestions
-
-    return filtered
   }
 
   const filteredItems = getFilteredItems()
@@ -62,7 +142,7 @@ export function TobaccoSelector({ tobaccoItems, onSelect }: TobaccoSelectorProps
     const parts = text.split(new RegExp(`(${query})`, 'gi'))
     return parts.map((part, index) =>
       part.toLowerCase() === query.toLowerCase() ? (
-        <mark key={index} className="bg-yellow-200 dark:bg-yellow-800 text-telegram-text">
+        <mark key={index} className="bg-yellow-200 dark:bg-yellow-800 text-telegram-text rounded-sm">
           {part}
         </mark>
       ) : (
@@ -71,172 +151,146 @@ export function TobaccoSelector({ tobaccoItems, onSelect }: TobaccoSelectorProps
     )
   }
 
-  // Handle keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!showSuggestions || filteredItems.length === 0) return
-
-      switch (e.key) {
-        case 'ArrowDown':
-          e.preventDefault()
-          setSelectedIndex((prev) =>
-            prev < filteredItems.length - 1 ? prev + 1 : prev
-          )
-          break
-        case 'ArrowUp':
-          e.preventDefault()
-          setSelectedIndex((prev) => (prev > 0 ? prev - 1 : -1))
-          break
-        case 'Enter':
-          e.preventDefault()
-          if (selectedIndex >= 0 && selectedIndex < filteredItems.length) {
-            handleSelect(filteredItems[selectedIndex])
-          } else if (filteredItems.length === 1) {
-            handleSelect(filteredItems[0])
-          }
-          break
-        case 'Escape':
-          setShowSuggestions(false)
-          setSelectedIndex(-1)
-          break
-      }
-    }
-
-    if (showSuggestions) {
-      window.addEventListener('keydown', handleKeyDown)
-      return () => window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [showSuggestions, selectedIndex, filteredItems, handleSelect])
-
-  // Scroll selected item into view
-  useEffect(() => {
-    if (selectedIndex >= 0 && suggestionsRef.current) {
-      const selectedElement = suggestionsRef.current.children[selectedIndex] as HTMLElement
-      if (selectedElement) {
-        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-      }
-    }
-  }, [selectedIndex])
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value)
-    setShowSuggestions(true)
+    if (!showSuggestions) setShowSuggestions(true)
     setSelectedIndex(-1)
   }
 
-  const handleInputFocus = () => {
-    setShowSuggestions(true)
-  }
-
-  const handleInputBlur = (e: React.FocusEvent) => {
-    // Delay to allow click on suggestion
-    // Don't close if focus moves to another element within the modal
-    setTimeout(() => {
-      const activeElement = document.activeElement
-      if (
-        !suggestionsRef.current?.contains(activeElement) &&
-        !inputRef.current?.contains(activeElement) &&
-        activeElement !== inputRef.current
-      ) {
-        setShowSuggestions(false)
-        setSelectedIndex(-1)
-      }
-    }, 200)
-  }
-
   return (
-    <div className="relative" onClick={(e) => e.stopPropagation()}>
-      <Input
-        ref={inputRef}
-        placeholder="Начните вводить название табака..."
-        value={searchQuery}
-        onChange={handleInputChange}
-        onFocus={handleInputFocus}
-        onBlur={handleInputBlur}
-        onClick={(e) => e.stopPropagation()}
-        className="mb-3"
-        autoComplete="off"
-      />
-
-      {showSuggestions && (
-        <div
-          ref={suggestionsRef}
-          className="absolute z-50 w-full bg-telegram-secondary-bg border border-telegram-bg rounded-lg shadow-lg max-h-64 overflow-y-auto"
+    <div className="relative min-h-[500px] max-h-[70vh] flex flex-col -mx-1" onClick={(e) => e.stopPropagation()}>
+      <div className="sticky top-0 bg-telegram-bg z-10 pb-4 px-1">
+        <Input
+          ref={inputRef}
+          placeholder="Поиск табака по названию..."
+          value={searchQuery}
+          onChange={handleInputChange}
           onClick={(e) => e.stopPropagation()}
-        >
-          {filteredItems.length === 0 ? (
-            <div className="p-4 text-center text-telegram-hint">
-              <p>Табаки не найдены</p>
-              <p className="text-xs mt-1">Попробуйте другой запрос</p>
-            </div>
-          ) : (
-            <div className="py-2">
-              {filteredItems.map((tobacco, index) => (
-                <button
-                  key={tobacco.id}
-                  onClick={() => handleSelect(tobacco)}
-                  className={`w-full text-left px-4 py-3 transition-colors ${
-                    index === selectedIndex
-                      ? 'bg-telegram-button text-telegram-button-text'
-                      : 'bg-transparent hover:bg-telegram-bg text-telegram-text'
-                  }`}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex flex-col">
-                      <span className="font-medium">
-                        {highlightMatch(tobacco.name, searchQuery)}
-                      </span>
-                      {tobacco.brands?.name && (
-                        <span className="text-xs text-telegram-hint opacity-80">
-                          {tobacco.brands.name}
-                        </span>
-                      )}
-                    </div>
-                    <span
-                      className={`text-sm ${
-                        index === selectedIndex
-                          ? 'text-telegram-button-text opacity-90'
-                          : 'text-telegram-hint'
-                      }`}
-                    >
-                      {tobacco.available_grams} г
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+          className="mb-4"
+          autoComplete="off"
+        />
 
-      {!showSuggestions && (
-        <div className="max-h-60 overflow-y-auto space-y-2">
-          {tobaccoItems.length === 0 ? (
-            <p className="text-center text-telegram-hint py-4">Нет доступных табаков</p>
-          ) : (
-            tobaccoItems.slice(0, 20).map((tobacco) => (
+        {/* Brands Tabs (Mirrors TobaccoList) */}
+        <div 
+          ref={brandsDrag.ref}
+          {...brandsDrag.props}
+          className="flex items-center gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide mb-2 cursor-grab active:cursor-grabbing select-none touch-pan-x"
+        >
+          <button
+            type="button"
+            onClickCapture={brandsDrag.handleItemClick}
+            onClick={() => setSelectedBrandId('all')}
+            className={`whitespace-nowrap px-4 py-2 rounded-lg transition-colors text-sm font-medium shrink-0 ${selectedBrandId === 'all'
+              ? 'bg-telegram-button text-telegram-button-text'
+              : 'bg-telegram-secondary-bg text-telegram-text'
+              }`}
+          >
+            Все бренды
+          </button>
+          {brands.map((brand) => (
+            <button
+              type="button"
+              key={brand.id}
+              onClickCapture={brandsDrag.handleItemClick}
+              onClick={() => setSelectedBrandId(brand.id)}
+              className={`whitespace-nowrap px-4 py-2 rounded-lg transition-colors text-sm font-medium shrink-0 ${selectedBrandId === brand.id
+                ? 'bg-telegram-button text-telegram-button-text'
+                : 'bg-telegram-secondary-bg text-telegram-text'
+                }`}
+            >
+              {brand.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Categories Tabs (Mirrors TobaccoList) */}
+        <div 
+          ref={categoriesDrag.ref}
+          {...categoriesDrag.props}
+          className="flex items-center gap-2 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide touch-pan-x cursor-grab active:cursor-grabbing select-none"
+        >
+          <button
+            type="button"
+            onClickCapture={categoriesDrag.handleItemClick}
+            onClick={() => setSelectedCategoryId('all')}
+            className={`whitespace-nowrap px-4 py-2 rounded-lg transition-colors text-sm font-medium shrink-0 ${selectedCategoryId === 'all'
+              ? 'bg-telegram-button text-telegram-button-text'
+              : 'bg-telegram-secondary-bg text-telegram-text'
+              }`}
+          >
+            Все категории
+          </button>
+          {categories.map((category) => (
+            <button
+              type="button"
+              key={category.id}
+              onClickCapture={categoriesDrag.handleItemClick}
+              onClick={() => setSelectedCategoryId(category.id)}
+              className={`whitespace-nowrap px-4 py-2 rounded-lg transition-colors text-sm font-medium shrink-0 ${selectedCategoryId === category.id
+                ? 'bg-telegram-button text-telegram-button-text'
+                : 'bg-telegram-secondary-bg text-telegram-text'
+                }`}
+            >
+              {category.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto mt-2 px-1 pr-1 custom-scrollbar">
+        {filteredItems.length === 0 ? (
+          <div className="py-12 text-center">
+            <p className="text-telegram-hint">Табаки не найдены</p>
+          </div>
+        ) : (
+          <div className="space-y-3 pb-4">
+            {filteredItems.map((tobacco) => (
               <button
                 key={tobacco.id}
                 onClick={() => handleSelect(tobacco)}
-                className="w-full text-left p-3 bg-telegram-secondary-bg rounded-lg hover:bg-opacity-80 transition-colors"
+                className="w-full text-left bg-telegram-secondary-bg rounded-lg p-3 shadow-sm hover:opacity-90 transition-opacity border border-transparent active:border-telegram-button"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex flex-col">
-                    <span className="font-medium text-telegram-text">{tobacco.name}</span>
-                    {tobacco.brands?.name && (
-                      <span className="text-xs text-telegram-hint">{tobacco.brands.name}</span>
-                    )}
+                <div className="flex items-start gap-3">
+                  {tobacco.image_url ? (
+                    <div className="relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden border border-telegram-bg/10">
+                      <Image
+                        src={tobacco.image_url}
+                        alt={tobacco.name}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-16 h-16 flex-shrink-0 rounded-lg bg-telegram-bg flex items-center justify-center border border-telegram-bg/10">
+                      <span className="text-xl">🌿</span>
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-telegram-text truncate text-base leading-tight">
+                      {highlightMatch(tobacco.name, searchQuery)}
+                    </h3>
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {tobacco.brands?.name && (
+                        <span className="text-telegram-text text-xs font-semibold">
+                          {tobacco.brands.name}
+                        </span>
+                      )}
+                      {tobacco.categories?.name && (
+                        <span className="px-1.5 py-0.5 bg-telegram-bg/30 text-telegram-hint text-[10px] font-medium rounded border border-telegram-bg/20">
+                          {tobacco.categories.name}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-telegram-hint mt-1.5 uppercase tracking-wide">
+                      Остаток: <span className="font-bold text-telegram-text">{tobacco.available_grams} г</span>
+                    </p>
                   </div>
-                  <span className="text-sm text-telegram-hint">
-                    {tobacco.available_grams} г
-                  </span>
                 </div>
               </button>
-            ))
-          )}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

@@ -13,11 +13,13 @@ import type { MixFormItem } from '@/types/mix.types'
 
 export function MixCreator() {
   const [tobaccoItems, setTobaccoItems] = useState<TobaccoItem[]>([])
+  const [categories, setCategories] = useState<any[]>([])
+  const [brands, setBrands] = useState<any[]>([])
   const [mixItems, setMixItems] = useState<MixFormItem[]>([])
   const [mixName, setMixName] = useState('')
   const [saveAsTemplate, setSaveAsTemplate] = useState(false)
   const [parentTemplateId, setParentTemplateId] = useState<string | null>(null)
-  const [mode, setMode] = useState<'grams' | 'percentage'>('percentage')
+  const [mode, setMode] = useState<'percentage'>('percentage')
   const [isSelectorOpen, setIsSelectorOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
@@ -28,6 +30,8 @@ export function MixCreator() {
 
   useEffect(() => {
     loadTobaccoItems()
+    loadCategories()
+    loadBrands()
     loadUserId()
     loadTemplates()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -41,6 +45,28 @@ export function MixCreator() {
       setTobaccoItems(data || [])
     } catch (error: any) {
       setToast({ message: error.message || 'Ошибка загрузки табаков', type: 'error' })
+    }
+  }
+
+  const loadCategories = async () => {
+    try {
+      const response = await fetch('/api/categories')
+      const { data, error } = await response.json()
+      if (error) throw new Error(error)
+      setCategories(data || [])
+    } catch (error: any) {
+      console.error('Error loading categories:', error)
+    }
+  }
+
+  const loadBrands = async () => {
+    try {
+      const response = await fetch('/api/brands')
+      const { data, error } = await response.json()
+      if (error) throw new Error(error)
+      setBrands(data || [])
+    } catch (error: any) {
+      console.error('Error loading brands:', error)
     }
   }
 
@@ -510,43 +536,17 @@ export function MixCreator() {
           </div>
         )}
 
-        {/* ... Rest of the component ... */}
-        <div className="flex gap-2">
-          {/* ... */}
-
-          <button
-            onClick={() => setMode('percentage')}
-            className={`flex-1 px-4 py-2 rounded-lg transition-colors ${mode === 'percentage'
-              ? 'bg-telegram-button text-telegram-button-text'
-              : 'bg-telegram-secondary-bg text-telegram-text'
-              }`}
-          >
-            Проценты
-          </button>
-          <button
-            onClick={() => setMode('grams')}
-            className={`flex-1 px-4 py-2 rounded-lg transition-colors ${mode === 'grams'
-              ? 'bg-telegram-button text-telegram-button-text'
-              : 'bg-telegram-secondary-bg text-telegram-text'
-              }`}
-          >
-            Граммы
-          </button>
-        </div>
-
         <div className="bg-telegram-secondary-bg rounded-lg p-4">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm text-telegram-hint">Общий вес:</span>
             <span className="font-semibold text-telegram-text">{totalGrams.toFixed(1)} г</span>
           </div>
-          {mode === 'percentage' && (
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-telegram-hint">Сумма процентов:</span>
-              <span className={`font-semibold ${Math.abs(totalPercentage - 100) < 1.0 ? 'text-green-500' : 'text-red-500'}`}>
-                {Math.round(totalPercentage)}%
-              </span>
-            </div>
-          )}
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-telegram-hint">Сумма процентов:</span>
+            <span className={`font-semibold ${Math.abs(totalPercentage - 100) < 1.0 ? 'text-green-500' : 'text-red-500'}`}>
+              {Math.round(totalPercentage)}%
+            </span>
+          </div>
         </div>
 
         {mixItems.length === 0 ? (
@@ -600,6 +600,8 @@ export function MixCreator() {
       >
         <TobaccoSelector
           tobaccoItems={tobaccoItems}
+          categories={categories}
+          brands={brands}
           onSelect={handleAddTobacco}
         />
       </Modal>
