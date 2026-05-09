@@ -274,15 +274,6 @@ export function MixCreator() {
 
       // We do NOT auto-scale others here to keep it simple as requested: "write only integers"
       // User manually adjusts others.
-    } else if (mode === 'grams' && updates.grams !== undefined) {
-      // Update grams and recalculate percentages
-      updated[index].grams = Math.max(0, updates.grams)
-      const newTotalGrams = updated.reduce((sum, item) => sum + item.grams, 0)
-      // If we want integers displayed, we store exact float but display rounded?
-      // Or we calculate exact percentages.
-      updated.forEach((item) => {
-        item.percentage = newTotalGrams > 0 ? (item.grams / newTotalGrams) * 100 : 0
-      })
     }
 
     setMixItems(updated)
