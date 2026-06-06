@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { formatMoscowTime } from '@/lib/format-time'
+import { Button } from '@/components/ui/Button'
+import { Toast } from '@/components/ui/Toast'
 
 interface MixItem {
   tobacco_name: string
@@ -35,6 +37,8 @@ export function HookahsDetailedStats() {
   const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'all'>('all')
   const [expandedUser, setExpandedUser] = useState<string | null>(null)
   const [expandedMix, setExpandedMix] = useState<string | null>(null)
+  const [deletingMixId, setDeletingMixId] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
 
   useEffect(() => {
     loadStats()
@@ -53,6 +57,30 @@ export function HookahsDetailedStats() {
       console.error('Error loading stats:', error)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleDeleteMix = async (mix: UserMix) => {
+    if (!confirm(`Удалить микс "${mix.name}" из истории и вернуть ${mix.total_grams} г табака в инвентарь?`)) {
+      return
+    }
+
+    setDeletingMixId(mix.id)
+    try {
+      const response = await fetch(`/api/mixes?id=${mix.id}`, {
+        method: 'DELETE',
+      })
+      const result = await response.json()
+
+      if (result.error) throw new Error(result.error)
+
+      setExpandedMix(null)
+      await loadStats()
+      setToast({ message: 'Микс удалён, табак возвращён в инвентарь', type: 'success' })
+    } catch (error: any) {
+      setToast({ message: error.message || 'Ошибка удаления микса', type: 'error' })
+    } finally {
+      setDeletingMixId(null)
     }
   }
 
@@ -169,6 +197,16 @@ export function HookahsDetailedStats() {
                                 <p className="text-telegram-button font-medium">{item.grams} г</p>
                               </div>
                             ))}
+                            <Button
+                              variant="danger"
+                              size="sm"
+                              className="w-full"
+                              isLoading={deletingMixId === mix.id}
+                              disabled={deletingMixId !== null}
+                              onClick={() => handleDeleteMix(mix)}
+                            >
+                              Удалить микс и вернуть табак
+                            </Button>
                           </div>
                         )}
                       </div>
@@ -179,6 +217,14 @@ export function HookahsDetailedStats() {
             </div>
           ))}
         </div>
+      )}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          isVisible={true}
+          onClose={() => setToast(null)}
+        />
       )}
     </div>
   )

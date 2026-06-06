@@ -14,6 +14,19 @@ const mixSchema = z.object({
   })).min(1, 'Микс должен содержать хотя бы один табак'),
 })
 
+const addGramsByTobacco = (items: Array<{ tobaccoid: string; grams: number }>) => {
+  const gramsByTobacco = new Map<string, number>()
+
+  for (const item of items) {
+    gramsByTobacco.set(item.tobaccoid, (gramsByTobacco.get(item.tobaccoid) || 0) + item.grams)
+  }
+
+  return Array.from(gramsByTobacco.entries()).map(([tobaccoid, grams]) => ({
+    tobaccoid,
+    grams,
+  }))
+}
+
 /**
  * GET /api/mixes
  * Returns all mixes - shared data accessible to all authenticated users
@@ -195,10 +208,32 @@ export async function DELETE(request: NextRequest) {
 
     const supabase = await createClient()
 
-    // Check if mix exists and is a template
+    // Prefer an atomic database function when it is installed.
+    const { data: deletedByRpc, error: rpcError } = await supabase.rpc('delete_mix_and_restore_inventory' as any, {
+      mix_id_to_delete: id,
+    })
+
+    if (!rpcError) {
+      if (!deletedByRpc) {
+        return NextResponse.json(
+          { error: 'Mix not found' },
+          { status: 404 }
+        )
+      }
+
+      return NextResponse.json({ success: true })
+    }
+
+    // Fallback for databases where the RPC migration has not been applied yet.
     const { data: mix, error: checkError } = await supabase
       .from('mixes')
-      .select('id, issavedtemplate')
+      .select(`
+        id,
+        mix_items (
+          tobaccoid,
+          grams
+        )
+      `)
       .eq('id', id)
       .single()
 
@@ -209,7 +244,31 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Delete mix (CASCADE will delete mix_items and hookah_sessions)
+    const mixData = mix as any
+    const itemsToRestore = addGramsByTobacco(mixData.mix_items || [])
+
+    for (const item of itemsToRestore) {
+      const { data: tobacco, error: tobaccoError } = await supabase
+        .from('tobacco_items')
+        .select('available_grams')
+        .eq('id', item.tobaccoid)
+        .single()
+
+      if (tobaccoError) throw tobaccoError
+
+      const tobaccoData = tobacco as any
+      const { error: updateError } = await supabase
+        .from('tobacco_items')
+        .update({
+          available_grams: (tobaccoData.available_grams as number) + item.grams,
+          updated_at: new Date().toISOString(),
+        } as any)
+        .eq('id', item.tobaccoid)
+
+      if (updateError) throw updateError
+    }
+
+    // Delete mix (CASCADE will delete mix_items and hookah_sessions).
     const { error: deleteError } = await supabase
       .from('mixes')
       .delete()

@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { formatMoscowTime } from '@/lib/format-time'
+import { Button } from '@/components/ui/Button'
+import { Toast } from '@/components/ui/Toast'
 
 interface MixItem {
   id: string
@@ -28,6 +30,8 @@ export function MixesDetailedStats() {
   const [isLoading, setIsLoading] = useState(true)
   const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'all'>('all')
   const [expandedMix, setExpandedMix] = useState<string | null>(null)
+  const [deletingMixId, setDeletingMixId] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
 
   useEffect(() => {
     loadStats()
@@ -46,6 +50,32 @@ export function MixesDetailedStats() {
       console.error('Error loading stats:', error)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleDeleteMix = async (mix: MixStat) => {
+    if (!confirm(`Удалить микс "${mix.name}" из истории и вернуть ${mix.total_grams} г табака в инвентарь?`)) {
+      return
+    }
+
+    setDeletingMixId(mix.id)
+    try {
+      const response = await fetch(`/api/mixes?id=${mix.id}`, {
+        method: 'DELETE',
+      })
+      const result = await response.json()
+
+      if (result.error) throw new Error(result.error)
+
+      setStats((current) => current.filter((item) => item.id !== mix.id))
+      if (expandedMix === mix.id) {
+        setExpandedMix(null)
+      }
+      setToast({ message: 'Микс удалён, табак возвращён в инвентарь', type: 'success' })
+    } catch (error: any) {
+      setToast({ message: error.message || 'Ошибка удаления микса', type: 'error' })
+    } finally {
+      setDeletingMixId(null)
     }
   }
 
@@ -88,7 +118,7 @@ export function MixesDetailedStats() {
                 key={mix.id}
                 className="bg-telegram-secondary-bg rounded-lg p-4 space-y-3"
               >
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between gap-3">
                   <div className="flex-1">
                     <h3 className="font-semibold text-telegram-text text-lg mb-1">
                       {mix.name}
@@ -99,7 +129,7 @@ export function MixesDetailedStats() {
                       <span>{mix.creator_name}</span>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0">
                     <p className="text-xs text-telegram-hint">Общий вес</p>
                     <p className="text-telegram-text font-semibold text-lg">{mix.total_grams} г</p>
                   </div>
@@ -134,12 +164,30 @@ export function MixesDetailedStats() {
                         <p className="text-telegram-button font-semibold">{item.grams} г</p>
                       </div>
                     ))}
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      className="w-full"
+                      isLoading={deletingMixId === mix.id}
+                      disabled={deletingMixId !== null}
+                      onClick={() => handleDeleteMix(mix)}
+                    >
+                      Удалить микс и вернуть табак
+                    </Button>
                   </div>
                 )}
               </div>
             )
           })}
         </div>
+      )}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          isVisible={true}
+          onClose={() => setToast(null)}
+        />
       )}
     </div>
   )
