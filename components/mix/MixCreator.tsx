@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { TobaccoSelector } from './TobaccoSelector'
 import { MixItem } from './MixItem'
@@ -25,6 +25,7 @@ export function MixCreator() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [savedTemplates, setSavedTemplates] = useState<any[]>([])
+  const isCreatingRef = useRef(false)
 
   const supabase = createClient()
 
@@ -356,6 +357,11 @@ export function MixCreator() {
   }
 
   const handleFinalizeCreate = async (asTemplate: boolean, customName?: string) => {
+    if (isCreatingRef.current) {
+      return
+    }
+
+    isCreatingRef.current = true
     setIsLoading(true)
     try {
       const response = await fetch('/api/mixes', {
@@ -403,6 +409,7 @@ export function MixCreator() {
     } catch (error: any) {
       setToast({ message: error.message || 'Ошибка создания микса', type: 'error' })
     } finally {
+      isCreatingRef.current = false
       setIsLoading(false)
     }
   }
@@ -574,6 +581,7 @@ export function MixCreator() {
           onClick={isLoading ? undefined : handleInitiateCreate}
           isLoading={isLoading}
           disabled={
+            isLoading ||
             mixItems.length === 0 ||
             (mode === 'percentage' && Math.abs(totalPercentage - 100) > 1) ||
             mixItems.some(item => item.grams <= 0)
@@ -624,7 +632,7 @@ export function MixCreator() {
         {step === 'duplicate_found' && matchedTemplate ? (
           <div className="space-y-4">
             <p className="text-telegram-text text-center">
-              Этот состав совпадает с шаблоном <span className="font-bold">"{matchedTemplate.name}"</span>.
+              Этот состав совпадает с шаблоном <span className="font-bold">&quot;{matchedTemplate.name}&quot;</span>.
               <br />
               Хотите создать этот микс?
             </p>
